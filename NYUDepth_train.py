@@ -2,7 +2,9 @@
 # @Time    : 2018/10/23 19:40
 # @Author  : Wang Xin
 # @Email   : wangxin_buaa@163.com
+from datetime import datetime
 import shutil
+import socket
 import time
 import torch
 from tensorboardX import SummaryWriter
@@ -25,17 +27,8 @@ fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
 best_result = Result()
 best_result.set_to_worst()
 
-# t = torch.zeros((4, 3, 257, 353), dtype=torch.float32)
-
-if torch.cuda.device_count() > 1:
-    t_train = torch.Size([args.batch_size * torch.cuda.device_count(), 3, 228, 304])
-else:
-    t_train = torch.Size([args.batch_size, 3, 228, 304])
-
-t_val = torch.Size([1, 3, 228, 304])
-
 def main():
-    global args, best_result, output_directory, train_csv, test_csv
+    global args, best_result, output_directory
 
     if torch.cuda.device_count() > 1:
         # args.batch_size = args.batch_size * torch.cuda.device_count()
@@ -55,8 +48,11 @@ def main():
         # print('保留参数：', args)
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
-        model_dict = checkpoint['model'].module.state_dict()  # 如果是多卡训练的要加module
-        model = FCRN.FCRN(batch_size=args.batch_size)
+        if torch.cuda.device_count() > 1:
+            model_dict = checkpoint['model'].module.state_dict()  # 如果是多卡训练的要加module
+        else:
+            model_dict = checkpoint['model'].state_dict()
+        model = FCRN.FCRN()  # 以新的batch_size为准
         model.load_state_dict(model_dict)
         print('batch_size = ', model.upSample.batch_size)
         # optimizer = checkpoint['optimizer']
@@ -66,7 +62,7 @@ def main():
         print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
     else:
         print("=> creating Model")
-        model = FCRN.FCRN_pretrain(batch_size=args.batch_size)
+        model = FCRN.FCRN()
         print("=> model created.")
         # optimizer = torch.optim.Adam(model.parameters(), args.lr)
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
@@ -79,24 +75,22 @@ def main():
     model = model.cuda()
 
     # 定义loss函数
-    criterion = torch.nn.MSELoss().cuda()
+    criterion = criteria.berHuLoss().cuda()
 
     # 创建保存结果目录文件
-    output_directory = './result5/'
+    output_directory = utils.get_output_directory(args)
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
-    train_csv = os.path.join(output_directory, 'train7.csv')
-    test_csv = os.path.join(output_directory, 'test7.csv')
-    best_txt = os.path.join(output_directory, 'best7.txt')
+    best_txt = os.path.join(output_directory, 'best.txt')
 
-    log_path = os.path.join(args.log_path, "{}".format('nyu'))
+    log_path = os.path.join(output_directory, 'logs', datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname())
     if os.path.isdir(log_path):
         shutil.rmtree(log_path)
     os.makedirs(log_path)
     logger = SummaryWriter(log_path)
 
     for epoch in range(start_epoch, args.epochs):
-        utils.adjust_learning_rate(optimizer, args.lr, epoch)  # 更新学习率
+        lr = utils.adjust_learning_rate(optimizer, args.lr, epoch)  # 更新学习率
 
         train(train_loader, model, criterion, optimizer, epoch, logger)  # train for one epoch
         result, img_merge = validate(val_loader, model, epoch, logger)  # evaluate on validation set
@@ -133,13 +127,6 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
     batch_num = len(train_loader)
 
     for i, (input, target) in enumerate(train_loader):
-        if input.size() != t_train:
-            print('----------------------------- -')
-            print('input size = ', input.size())
-            print('target sieze = ', target.size())
-            print('输入不足batch size！跳过本条输入！')
-            print('-------------------------------')
-            continue
 
         # itr_count += 1
         input, target = input.cuda(), target.cuda()
@@ -188,32 +175,15 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
             logger.add_scalar('Train/Log10', result.lg10, current_step)
 
     avg = average_meter.average()
-    with open(train_csv, 'a') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
-            'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
-            'gpu_time': avg.gpu_time, 'data_time': avg.data_time})
 
 
 # 修改
-def validate(val_loader, _model, epoch, logger, write_to_file=True):
+def validate(val_loader, model, epoch, logger, write_to_file=True):
     average_meter = AverageMeter()
-    model = FCRN.FCRN(batch_size=1)
-
-    if torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
-
-    model.load_state_dict(_model.state_dict())
     model.eval() # switch to evaluate mode
-    model.cuda()
     end = time.time()
 
     for i, (input, target) in enumerate(val_loader):
-        # print('test!')
-        # print('input size = ', input.size())
-        # print('target size = ', target.size())
-        if t_val != input.size():
-            continue
         input, target = input.cuda(), target.cuda()
         torch.cuda.synchronize()
         data_time = time.time() - end
@@ -238,22 +208,12 @@ def validate(val_loader, _model, epoch, logger, write_to_file=True):
         if args.modality == 'd':
             img_merge = None
         else:
-            if args.modality == 'rgb':
-                rgb = input
-            elif args.modality == 'rgbd':
-                rgb = input[:,:3,:,:]
-                depth = input[:,3:,:,:]
+            rgb = input
 
             if i == 0:
-                if args.modality == 'rgbd':
-                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                else:
-                    img_merge = utils.merge_into_row(rgb, target, pred)
+                img_merge = utils.merge_into_row(rgb, target, pred)
             elif (i < 8*skip) and (i % skip == 0):
-                if args.modality == 'rgbd':
-                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                else:
-                    row = utils.merge_into_row(rgb, target, pred)
+                row = utils.merge_into_row(rgb, target, pred)
                 img_merge = utils.add_row(img_merge, row)
             elif i == 8*skip:
                 filename = output_directory + '/comparison_' + str(epoch) + '.png'
@@ -279,13 +239,6 @@ def validate(val_loader, _model, epoch, logger, write_to_file=True):
         'Lg10={average.lg10:.3f}\n'
         't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
-
-    if write_to_file:
-        with open(test_csv, 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
-                'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
-                'data_time': avg.data_time, 'gpu_time': avg.gpu_time})
 
     logger.add_scalar('Test/mse', avg.mse, epoch)
     logger.add_scalar('Test/rmse', avg.rmse, epoch)

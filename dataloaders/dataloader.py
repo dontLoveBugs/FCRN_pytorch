@@ -115,10 +115,6 @@ class MyDataloader(data.Dataset):
         else:
             raise (RuntimeError("transform not defined"))
 
-        # color normalization
-        # rgb_tensor = normalize_rgb(rgb_tensor)
-        # rgb_np = normalize_np(rgb_np)
-
         if self.modality == 'rgb':
             input_np = rgb_np
         elif self.modality == 'rgbd':
@@ -136,36 +132,3 @@ class MyDataloader(data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
-
-    # def __get_all_item__(self, index):
-    #     """
-    #     Args:
-    #         index (int): Index
-
-    #     Returns:
-    #         tuple: (input_tensor, depth_tensor, input_np, depth_np)
-    #     """
-    #     rgb, depth = self.__getraw__(index)
-    #     if self.transform is not None:
-    #         rgb_np, depth_np = self.transform(rgb, depth)
-    #     else:
-    #         raise(RuntimeError("transform not defined"))
-
-    #     # color normalization
-    #     # rgb_tensor = normalize_rgb(rgb_tensor)
-    #     # rgb_np = normalize_np(rgb_np)
-
-    #     if self.modality == 'rgb':
-    #         input_np = rgb_np
-    #     elif self.modality == 'rgbd':
-    #         input_np = self.create_rgbd(rgb_np, depth_np)
-    #     elif self.modality == 'd':
-    #         input_np = self.create_sparse_depth(rgb_np, depth_np)
-
-    #     input_tensor = to_tensor(input_np)
-    #     while input_tensor.dim() < 3:
-    #         input_tensor = input_tensor.unsqueeze(0)
-    #     depth_tensor = to_tensor(depth_np)
-    #     depth_tensor = depth_tensor.unsqueeze(0)
-
-    #     return input_tensor, depth_tensor, input_np, depth_np
