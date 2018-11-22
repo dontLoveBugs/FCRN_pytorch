@@ -6,7 +6,7 @@ This is a PyTorch(0.4.0) implementation of [Deeper Depth Prediction with Fully C
 can use Fully Convolutional Residual Networks to realize monocular depth prediction. Currently, we can train FCRN
 using NYUDepthv2(kitti will soon!).
 
-Note: We modify the upsample module using pixelshuffle!
+Note: We modify the upsample module using the upsample strategy in [Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network](https://arxiv.org/abs/1609.05158v2), and we also provide original upsample methods in original paper.
 
 ### Result
 
