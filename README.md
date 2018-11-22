@@ -17,12 +17,12 @@ The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X.  We train
  Method |   rml  | rmse  | log10 | Delta1 | Delta2 | Delta3 
  :-------| :------: | :------: | :------: | :------: | :------: | :------: 
  FCRN   | 0.127  | 0.573 | 0.055 | 0.811 | 0.953 | 0.988
- FCRN_ours  | 0.177 | 0.587 | - | 0.744 | - | -
+ FCRN_ours  | 0.177 | 0.587 | - | 0.744 | 0.936 | 0.984
  FCRN_oursv2 | 0.159 | 0.546 | 0.066 | 0.779 | 0.951 | 0.988
  
  FCRN_ours: we set filters group in upsample: 2x2 2x3 3x3 3x3
  
- ![avatar](https://lh3.googleusercontent.com/MeWDCgAeZQnay6zBR5TWAWG0dbIe-bduhdfpRbwrj-j9yQ3JShm9RZBzLwhfowhDOLcVwlHIprMnSDIlLQxhEjXL9_UMFXTgCITM7GzRpx7rySoF91md4Z7qvsYWJg-jdmJclSIcK5DH0pHvP0w2Q_xVXdnjHe-R5kchbKWEPSAiW1V0vK02oRZwO9nNGRYU64lyltEQcoFFZJtxRU5qAJ_Mk725oE0Jhd69namBkRrDrn0W35Gc4q4jAWf2SoYpFWvRGH_tttlvpy8o3AI8BMZqIZnDV9cWknxR7iLpcU8AQ-Ean4ekxZeQ5sR-DuWj27jQZDvZlNl_HOjIQG4-ZKvs_R_FuwseA_L6ZEtrO0vBgG_HfWANwBlQIAmbkJxq2hsWW7fxS0x6IYAzrZqKIRtzdftt3HwG6CD9PF3VWaE4G8T8-VEB-zfkoZEw4VghOhNLSYnDEVzUllGf1iJAbljbdrzi4iKGfnHrLe8xgp7uyMlqk2MzHA25zB425cL2q_9wqA0tpDT8AAWDRjzDBKUEeIzx719Qx3e7wYYoKoX3wl3U-tj6yV5V1nfrZtbXKVE9snwqQMxyeMLAhSgral5pWGE-0oElAij3YoAuLM4OiWRE03KjLyjCH3rr1yUnOl3GGte7azcSXnuCvO3E2HA=w405-h809-no)
+ ![avatar](https://lh3.googleusercontent.com/aJxtuQH8CVeXXQtPXUQYYjEQS_dhp8pJjVHMNSWlK0Cp4PhM_yREpB7UsfSq7onPVMe_0xbhvz6Vd9MUTkj1aGPL-uDykU8PxTELjxzbyQZv4xsEBjmwGwa6H4VQE2p3rKhSz3K1KRq8OU4v3fZ2hgeV_CBBuEPE71Lk0lo3BRFb94HDAhAqDmPQVXeKFWDP1CYmI00bLl4620As4HzvZxB-eR6yVCJJbWIlOF4v-d-9UvSoGzRYyTL1DDVvDT7308OT04XOVY7nqlrYa1naCGgyMMLwBQJcg61yPVosYA1UP6cWm4pAHRsvkT1EU1YQlhe_1-FWz1ZjZWClGBp6IFN0fjyxEbn69pHieObaX8yfS1K8NU71FMY6uIkrgz87n7CDf6fwUm4tDLtNgc7dliYIvLBGaq9C_qXbriO_FlheWS84GJfoUC1RyNyLtXQmEIdja3ZRMUhEcntsVOzFnSOvss2VDI0DWtz8QfdPpzsccuCcIM0Lv44X3MWPdXTHyVu7rtaW2Joo6QyB_qUkmrKhAGh9oJlLx3yqthEsrz5fR4cJpZr0icKEb0vygFCr9jBuRgbb7Xi6pimrHP_2RzbapgjRAW4cLm7lD5D_KrAPYYiC2g4EBvhy4r7n2HaPopxAmb7MHK33VMrFbjiKJSw=w633-h1264-no)
  
  FCRN_oursv2: we set filters group in upsample: 1x1 3x3 5x5 3x3(dilation = 2)
  
