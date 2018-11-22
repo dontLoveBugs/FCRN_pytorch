@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 
-cmap = plt.cm.viridis
+cmap = plt.cm.jet
 
 
 def parse_command():
