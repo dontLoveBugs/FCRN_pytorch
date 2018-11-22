@@ -18,7 +18,7 @@ The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X.  We train
  :-------| :------: | :------: | :------: | :------: | :------: | :------: 
  FCRN   | 0.127  | 0.573 | 0.055 | 0.811 | 0.953 | 0.988
  FCRN_ours  | 0.177 | 0.587 | - | 0.744 | - | -
- FCRN_oursv2 | 0.175 | 0.574 | - | 0.755 | - | -
+ FCRN_oursv2 | 0.159 | 0.546 | 0.066 | 0.779 | 0.951 | 0.988
  
  FCRN_ours: we set filters group in upsample: 2x2 2x3 3x3 3x3
  
@@ -26,7 +26,7 @@ The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X.  We train
  
  FCRN_oursv2: we set filters group in upsample: 1x1 3x3 5x5 3x3(dilation = 2)
  
- ![avatar](https://lh3.googleusercontent.com/H-TdiPbZGzs2BlrgPxFJupw3Esxi9eDyGyK-FbGDmH0lWU02_eRFBnnqomvWG4i2r053wrH6ktZ8YCMiLvUUOrWGJRyn3_Vium1Ezi97F1UXYAr8vL4aC-IQQ06FA-aVEEV_2CaUPouJ8JxGvpXdvXxSSlSo-DlLTTBBc3iYj_YwoR5XjFdYe4_HpfZqLHZ20zyeL5AVA8ryx5t7c-RcB77a25DobaAxOhi10BPgdxO5qPjbA1_YITk0g3TrTAYbfyb-YLksCYcj4bHJeYp1g4YElHzw1dgoUcH2vpGu0UxzPDAiMPZfml3TimMdFr3Tmt6TIeDyoWbkyaocZJHexbySf1piShHkMiOOpLCu_wW1meI6Wpww9d1xHkc0SNcCMzgorXNF7iK_DUgN_sud_3xFTV1Z9hBCU_u8GH5KEbLaTBf4u3Gm8TFJDjLjg-Vl0rm49drlNzKI-QZnxY8beSq3HvYWuCdq-h3ulG47FErGvVJrE92i9qzOZv6uQfHFgppIz1L7no3gmcRvxbSsQAOGgz5tTkmjJArwuqZJwMnXnMYoRVm7TGcGl5GdQ9DCHFCMp1nnL0f5KKJUmmjOaFyg9T90oKMFRaGl2eKoYSb6R8U56yYdesW29hnxTQZU-_6ejtC4PJMciuAxhnvKjjo=w633-h1264-no)
+ ![avatar](https://lh3.googleusercontent.com/1TYkjPPdh4_Gelnja1hD9n5HPXr8bmuYqQRYNy9ePzSCe2P0h3_zxyVvMAhWvKKCUJktbHE63P0ELuVMLk7L1BWV8X2M0hhGN5uBN38BiLBISKecrKyozjEjeccsYn63pU7b9ie3EiT1YLiCrNSD5JU6kPMwEixz4Dg7bNDXi43tubFD5G-RbRLaW16MGU9Wmn0bzF2UEhcND_rkKH_oNhehcQOM437cLjnL_BislzeTHb69DJtVUI3vaNCZt6ORLP-vbvilSN2TAhQsW-efBqy3IcDipUOIDR_ErUpfla95T1ZWKSZCpGZ-WBd8t1pMhfXaXEbv1k0vt3PBuxl1Hhf5-rhbF1fQzXCSpboUXAN8WnGBLKQLdEk2C2DYIbNJ69Z0xCdQ1GcYtJCkGFe2YPSM1ekc-d4R9pylf6ydb42fSYvRXhamKUXP0E1Si77hvAnIG5pEjBiYcG5fPXx3HV07LnLQSSs_BOG_sEpLe0S9F2F07yX_QohiAXSMRzySkm5DXOaumaiziptyPSG9ncc7Zv443_8_8ukQtKxSczZEBRZkYR7MiOknr2doTfobvHEzvocgkV0WMFTbt_4vU3H3tKPh8ivnmLN5Hg0oyY6bnUokCV4bF9E-2BEHJ52lT3UsJbcXmU_4JzoBniBA2J8=w633-h1264-no)
 
 ### Installation
 The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X. 
