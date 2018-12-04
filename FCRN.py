@@ -36,13 +36,12 @@ class Unpool(nn.Module):
         self.num_channels = num_channels
         self.stride = stride
 
-        # create kernel [1, 0; 0, 0]
-        self.weights = torch.autograd.Variable(
-            torch.zeros(num_channels, 1, stride, stride).cuda())  # currently not compatible with running on CPU
-        self.weights[:, :, 0, 0] = 1
-
     def forward(self, x):
-        return F.conv_transpose2d(x, self.weights, stride=self.stride, groups=self.num_channels)
+        weights = torch.zeros(self.num_channels, 1, self.stride, self.stride)
+        if torch.cuda.is_available():
+            weights = weights.cuda()
+        weights[:, :, 0, 0] = 1
+        return F.conv_transpose2d(x, weights, stride=self.stride, groups=self.num_channels)
 
 
 # class Unpool(nn.Module):
@@ -231,7 +230,7 @@ class ResNet(nn.Module):
         # self.up3 = UpSample(num_channels // (2 ** 3))
         # self.up4 = UpSample(num_channels // (2 ** 4))
 
-        self.upSample = UpConv(num_channels // 2)
+        self.upSample = UpProj(num_channels // 2)
 
         # setting bias=true doesn't improve accuracy
         self.conv3 = nn.Conv2d(num_channels // 32, 1, kernel_size=3, stride=1, padding=1, bias=False)
@@ -276,12 +275,18 @@ class ResNet(nn.Module):
         return x
 
 
+import time
+
 if __name__ == "__main__":
     model = ResNet(layers=50, output_size=((228, 304)))
     model = model.cuda()
     model.eval()
     image = torch.randn(1, 3, 228, 304)
     image = image.cuda()
+
+    gpu_time = time.time()
     with torch.no_grad():
         output = model(image)
+    gpu_time = time.time() - gpu_time
+    print('gpu_time = ', gpu_time)
     print(output.size())
