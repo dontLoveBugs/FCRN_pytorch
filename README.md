@@ -48,7 +48,7 @@ The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X.
 
 2. Configure your dataset path in code.
 
-3. You can train deeplab v3+ using xception or resnet as backbone.
+3. Training
 
     To train NYU Depth v2, please do:
     ```Shell
