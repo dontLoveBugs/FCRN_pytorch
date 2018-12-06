@@ -8,9 +8,11 @@ import torch
 import math
 import numpy as np
 
+
 def log10(x):
     """Convert a new tensor with the base-10 logarithm of the elements of x. """
     return torch.log(x) / math.log(10)
+
 
 class Result(object):
     def __init__(self):
@@ -35,7 +37,7 @@ class Result(object):
         self.data_time, self.gpu_time = data_time, gpu_time
 
     def evaluate(self, output, target):
-        valid_mask = target>0
+        valid_mask = target > 0
         output = output[valid_mask]
         target = target[valid_mask]
 
@@ -77,18 +79,18 @@ class AverageMeter(object):
     def update(self, result, gpu_time, data_time, n=1):
         self.count += n
 
-        self.sum_irmse += n*result.irmse
-        self.sum_imae += n*result.imae
-        self.sum_mse += n*result.mse
-        self.sum_rmse += n*result.rmse
-        self.sum_mae += n*result.mae
-        self.sum_absrel += n*result.absrel
-        self.sum_lg10 += n*result.lg10
-        self.sum_delta1 += n*result.delta1
-        self.sum_delta2 += n*result.delta2
-        self.sum_delta3 += n*result.delta3
-        self.sum_data_time += n*data_time
-        self.sum_gpu_time += n*gpu_time
+        self.sum_irmse += n * result.irmse
+        self.sum_imae += n * result.imae
+        self.sum_mse += n * result.mse
+        self.sum_rmse += n * result.rmse
+        self.sum_mae += n * result.mae
+        self.sum_absrel += n * result.absrel
+        self.sum_lg10 += n * result.lg10
+        self.sum_delta1 += n * result.delta1
+        self.sum_delta2 += n * result.delta2
+        self.sum_delta3 += n * result.delta3
+        self.sum_data_time += n * data_time
+        self.sum_gpu_time += n * gpu_time
 
     def average(self):
         avg = Result()

@@ -44,40 +44,6 @@ class Unpool(nn.Module):
         return F.conv_transpose2d(x, weights, stride=self.stride, groups=self.num_channels)
 
 
-# class Unpool(nn.Module):
-#     '''
-#     Unpooling Layer implemented following description in
-#     A. Dosovitskiy, J. Tobias Springberg, and T.Brox.
-#     <Learning to generate chairs with convolutional neural networks>
-#     '''
-#
-#     def __init__(self, use_gpu=True):
-#         super(Unpool, self).__init__()
-#         kernel = torch.FloatTensor([[1, 0], [0, 0]])
-#         kernel = kernel.unsqueeze(0)
-#         kernel = kernel.unsqueeze(0)
-#         if use_gpu:
-#             self.kernel = kernel.cuda()
-#         else:
-#             self.kernel = kernel
-#         return
-#
-#     def forward(self, inputs):
-#         in_batches = inputs.size()[0]
-#         in_channels = inputs.size()[1]
-#         inputs = inputs.view(
-#             in_batches * in_channels,
-#             1, inputs.size()[2], inputs.size()[3]
-#         )
-#         inputs = torch.nn.functional.conv_transpose2d(
-#             inputs, self.kernel, stride=2
-#         )
-#         inputs = inputs.view(
-#             in_batches, in_channels, inputs.size()[2], inputs.size()[3]
-#         )
-#         return inputs
-
-
 class Decoder(nn.Module):
     # Decoder is the base class for all decoders
 
@@ -144,6 +110,60 @@ class UpConv(Decoder):
         self.layer4 = self.upconv_module(in_channels // 8)
 
 
+class FasterUpConv(Decoder):
+    # Faster Upconv using pixelshuffle
+
+    class faster_upconv_module(nn.Module):
+
+        def __init__(self, in_channel):
+            super(FasterUpConv.faster_upconv_module, self).__init__()
+
+            self.conv1_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=3)),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv2_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=(2, 3))),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv3_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=(3, 2))),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv4_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=2)),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.ps = nn.PixelShuffle(2)
+            self.relu = nn.ReLU(inplace=True)
+
+        def forward(self, x):
+            # print('Upmodule x size = ', x.size())
+            x1 = self.conv1_(nn.functional.pad(x, (1, 1, 1, 1)))
+            x2 = self.conv2_(nn.functional.pad(x, (1, 1, 0, 1)))
+            x3 = self.conv3_(nn.functional.pad(x, (0, 1, 1, 1)))
+            x4 = self.conv4_(nn.functional.pad(x, (0, 1, 0, 1)))
+
+            x = torch.cat((x1, x2, x3, x4), dim=1)
+
+            output = self.ps(x)
+            output = self.relu(output)
+
+            return output
+
+    def __init__(self, in_channel):
+        super(FasterUpConv, self).__init__()
+
+        self.layer1 = self.faster_upconv_module(in_channel)
+        self.layer2 = self.faster_upconv_module(in_channel // 2)
+        self.layer3 = self.faster_upconv_module(in_channel // 4)
+        self.layer4 = self.faster_upconv_module(in_channel // 8)
+
+
 class UpProj(Decoder):
     # UpProj decoder consists of 4 upproj modules with decreasing number of channels and increasing feature map size
 
@@ -185,8 +205,82 @@ class UpProj(Decoder):
         self.layer4 = self.UpProjModule(in_channels // 8)
 
 
+class FasterUpProj(Decoder):
+    # Faster UpProj decorder using pixelshuffle
+
+    class faster_upconv(nn.Module):
+
+        def __init__(self, in_channel):
+            super(FasterUpProj.faster_upconv, self).__init__()
+
+            self.conv1_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=3)),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv2_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=(2, 3))),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv3_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=(3, 2))),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.conv4_ = nn.Sequential(collections.OrderedDict([
+                ('conv1', nn.Conv2d(in_channel, in_channel // 2, kernel_size=2)),
+                ('bn1', nn.BatchNorm2d(in_channel // 2)),
+            ]))
+
+            self.ps = nn.PixelShuffle(2)
+            self.relu = nn.ReLU(inplace=True)
+
+        def forward(self, x):
+            # print('Upmodule x size = ', x.size())
+            x1 = self.conv1_(nn.functional.pad(x, (1, 1, 1, 1)))
+            x2 = self.conv2_(nn.functional.pad(x, (1, 1, 0, 1)))
+            x3 = self.conv3_(nn.functional.pad(x, (0, 1, 1, 1)))
+            x4 = self.conv4_(nn.functional.pad(x, (0, 1, 0, 1)))
+            # print(x1.size(), x2.size(), x3.size(), x4.size())
+
+            x = torch.cat((x1, x2, x3, x4), dim=1)
+
+            x = self.ps(x)
+            return x
+
+    class FasterUpProjModule(nn.Module):
+        def __init__(self, in_channels):
+            super(FasterUpProj.FasterUpProjModule, self).__init__()
+            out_channels = in_channels // 2
+
+            self.upper_branch = nn.Sequential(collections.OrderedDict([
+                ('faster_upconv', FasterUpProj.faster_upconv(in_channels)),
+                ('relu', nn.ReLU(inplace=True)),
+                ('conv', nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)),
+                ('batchnorm', nn.BatchNorm2d(out_channels)),
+            ]))
+            self.bottom_branch = FasterUpProj.faster_upconv(in_channels)
+            self.relu = nn.ReLU(inplace=True)
+
+        def forward(self, x):
+            x1 = self.upper_branch(x)
+            x2 = self.bottom_branch(x)
+            x = x1 + x2
+            x = self.relu(x)
+            return x
+
+    def __init__(self, in_channel):
+        super(FasterUpProj, self).__init__()
+
+        self.layer1 = self.FasterUpProjModule(in_channel)
+        self.layer2 = self.FasterUpProjModule(in_channel // 2)
+        self.layer3 = self.FasterUpProjModule(in_channel // 4)
+        self.layer4 = self.FasterUpProjModule(in_channel // 8)
+
+
 class ResNet(nn.Module):
-    def __init__(self, layers, output_size=(228, 304), in_channels=3, pretrained=True):
+    def __init__(self, layers = 50, output_size=(228, 304), in_channels=3, pretrained=True):
 
         if layers not in [18, 34, 50, 101, 152]:
             raise RuntimeError(
@@ -225,12 +319,7 @@ class ResNet(nn.Module):
         self.conv2 = nn.Conv2d(num_channels, num_channels // 2, kernel_size=1, bias=False)
         self.bn2 = nn.BatchNorm2d(num_channels // 2)
 
-        # self.up1 = UpSample(num_channels // 2)
-        # self.up2 = UpSample(num_channels // (2 ** 2))
-        # self.up3 = UpSample(num_channels // (2 ** 3))
-        # self.up4 = UpSample(num_channels // (2 ** 4))
-
-        self.upSample = UpProj(num_channels // 2)
+        self.upSample = FasterUpProj(num_channels // 2)
 
         # setting bias=true doesn't improve accuracy
         self.conv3 = nn.Conv2d(num_channels // 32, 1, kernel_size=3, stride=1, padding=1, bias=False)
@@ -240,10 +329,6 @@ class ResNet(nn.Module):
         self.conv2.apply(weights_init)
         self.bn2.apply(weights_init)
 
-        # self.up1.apply(weights_init)
-        # self.up2.apply(weights_init)
-        # self.up3.apply(weights_init)
-        # self.up4.apply(weights_init)
         self.upSample.apply(weights_init)
 
         self.conv3.apply(weights_init)
@@ -263,10 +348,6 @@ class ResNet(nn.Module):
         x = self.bn2(x)
 
         # 上采样
-        # x = self.up1(x)
-        # x = self.up2(x)
-        # x = self.up3(x)
-        # x = self.up4(x)
         x = self.upSample(x)
 
         x = self.conv3(x)

@@ -9,73 +9,95 @@ import time
 import torch
 from tensorboardX import SummaryWriter
 
+import FCRN
+from dataloaders import nyu_dataloader
 from metrics import AverageMeter, Result
 import utils
-import NYU_dpeth
-import FCRN
 import criteria
-import csv
 import os
 import torch.nn as nn
+
+# 切换成单卡
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 默认使用GPU 0
 
 args = utils.parse_command()
 print(args)
 
-fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
-                'delta1', 'delta2', 'delta3',
-                'data_time', 'gpu_time']
 best_result = Result()
 best_result.set_to_worst()
+
+
+def NYUDepth_loader(data_path, batch_size=32, isTrain=True):
+    if isTrain:
+        traindir = os.path.join(data_path, 'train')
+        print(traindir)
+
+        if os.path.exists(traindir):
+            print('训练集目录存在')
+        trainset = nyu_dataloader.NYUDataset(traindir, type='train')
+        train_loader = torch.utils.data.DataLoader(
+            trainset, batch_size=batch_size, shuffle=True)  # @wx 多线程读取失败
+        return train_loader
+    else:
+        valdir = os.path.join(data_path, 'val')
+        print(valdir)
+
+        if os.path.exists(valdir):
+            print('测试集目录存在')
+        valset = nyu_dataloader.NYUDataset(valdir, type='val')
+        val_loader = torch.utils.data.DataLoader(
+            valset, batch_size=1, shuffle=False  # shuffle 测试时是否设置成False batch_size 恒定为1
+        )
+        return val_loader
+
 
 def main():
     global args, best_result, output_directory
 
     if torch.cuda.device_count() > 1:
         # args.batch_size = args.batch_size * torch.cuda.device_count()
-
-        train_loader = NYU_dpeth.NYUDepth_loader(args.data_path, batch_size=args.batch_size * torch.cuda.device_count(), isTrain=True)
-        val_loader = NYU_dpeth.NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=False)
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        train_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size * torch.cuda.device_count(),
+                                       isTrain=True)
+        val_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=False)
     else:
-        train_loader = NYU_dpeth.NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=True)
-        val_loader = NYU_dpeth.NYUDepth_loader(args.data_path, isTrain=False)
+        print("Let's use", torch.cuda.current_device())
+        train_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=True)
+        val_loader = NYUDepth_loader(args.data_path, isTrain=False)
 
     if args.resume:
         assert os.path.isfile(args.resume), \
             "=> no checkpoint found at '{}'".format(args.resume)
         print("=> loading checkpoint '{}'".format(args.resume))
         checkpoint = torch.load(args.resume)
-        # args = checkpoint['args']
-        # print('保留参数：', args)
+
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
         if torch.cuda.device_count() > 1:
             model_dict = checkpoint['model'].module.state_dict()  # 如果是多卡训练的要加module
         else:
             model_dict = checkpoint['model'].state_dict()
-        model = FCRN.FCRN()  # 以新的batch_size为准
+        # model_dict = checkpoint['model'].state_dict()
+        model = FCRN.ResNet(layers=50, output_size=((228, 304)))
         model.load_state_dict(model_dict)
-        print('batch_size = ', model.upSample.batch_size)
-        # optimizer = checkpoint['optimizer']
         # 使用SGD进行优化
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
         print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
     else:
         print("=> creating Model")
-        model = FCRN.FCRN()
+        model = FCRN.ResNet(layers=50, output_size=((228, 304)), pretrained=True)
         print("=> model created.")
-        # optimizer = torch.optim.Adam(model.parameters(), args.lr)
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
         start_epoch = 0
     # 如果有多GPU 使用多GPU训练
-    if torch.cuda.device_count():
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
+    if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
     model = model.cuda()
 
     # 定义loss函数
-    criterion = criteria.berHuLoss().cuda()
+    criterion = criteria.MaskedL1Loss().cuda()
 
     # 创建保存结果目录文件
     output_directory = utils.get_output_directory(args)
@@ -83,7 +105,8 @@ def main():
         os.makedirs(output_directory)
     best_txt = os.path.join(output_directory, 'best.txt')
 
-    log_path = os.path.join(output_directory, 'logs', datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname())
+    log_path = os.path.join(output_directory, 'logs',
+                            datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname())
     if os.path.isdir(log_path):
         shutil.rmtree(log_path)
     os.makedirs(log_path)
@@ -100,8 +123,11 @@ def main():
         if is_best:
             best_result = result
             with open(best_txt, 'w') as txtfile:
-                txtfile.write("epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
-                    format(epoch, result.mse, result.rmse, result.absrel, result.lg10, result.mae, result.delta1, result.gpu_time))
+                txtfile.write(
+                    "epoch={}\nrmse={:.3f}\nrml={:.3f}\nlog10={:.3f}\nd1={:.3f}\nd2={:.3f}\nd3={:.3f}\nt_gpu={:.4f}\n".
+                        format(epoch, result.rmse, result.absrel, result.lg10, result.delta1, result.delta2,
+                               result.delta3,
+                               result.gpu_time))
             if img_merge is not None:
                 img_filename = output_directory + '/comparison_best.png'
                 utils.save_image(img_merge, img_filename)
@@ -112,7 +138,7 @@ def main():
             'epoch': epoch,
             'model': model,
             'best_result': best_result,
-            'optimizer' : optimizer,
+            'optimizer': optimizer,
         }, is_best, epoch, output_directory)
 
     logger.close()
@@ -121,7 +147,7 @@ def main():
 # 在NYUDepth数据集上训练
 def train(train_loader, model, criterion, optimizer, epoch, logger):
     average_meter = AverageMeter()
-    model.train() # switch to train mode
+    model.train()  # switch to train mode
     end = time.time()
 
     batch_num = len(train_loader)
@@ -144,7 +170,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
 
         loss = criterion(pred, target)
         optimizer.zero_grad()
-        loss.backward() # compute gradient and do SGD step
+        loss.backward()  # compute gradient and do SGD step
         optimizer.step()
         torch.cuda.synchronize()
         gpu_time = time.time() - end
@@ -161,18 +187,20 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
                   't_Data={data_time:.3f}({average.data_time:.3f}) '
                   't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
                   'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                  'MAE={result.mae:.2f}({average.mae:.2f}) '
+                  'RML={result.absrel:.2f}({average.absrel:.2f}) '
+                  'Log10={result.lg10:.3f}({average.lg10:.3f}) '
                   'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '.format(
-                  epoch, i+1, len(train_loader), data_time=data_time,
-                  gpu_time=gpu_time, result=result, average=average_meter.average()))
+                  'Delta2={result.delta2:.3f}({average.delta2:.3f}) '
+                  'Delta3={result.delta3:.3f}({average.delta3:.3f})'.format(
+                epoch, i + 1, len(train_loader), data_time=data_time,
+                gpu_time=gpu_time, result=result, average=average_meter.average()))
             current_step = epoch * batch_num + i
             logger.add_scalar('Train/RMSE', result.rmse, current_step)
-            logger.add_scalar('Train/MAE', result.mae, current_step)
-            logger.add_scalar('Train/Delta1', result.delta1, current_step)
-            logger.add_scalar('Train/REL', result.absrel, current_step)
+            logger.add_scalar('Train/rml', result.absrel, current_step)
             logger.add_scalar('Train/Log10', result.lg10, current_step)
+            logger.add_scalar('Train/Delta1', result.delta1, current_step)
+            logger.add_scalar('Train/Delta2', result.delta2, current_step)
+            logger.add_scalar('Train/Delta3', result.delta3, current_step)
 
     avg = average_meter.average()
 
@@ -180,10 +208,13 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
 # 修改
 def validate(val_loader, model, epoch, logger, write_to_file=True):
     average_meter = AverageMeter()
-    model.eval() # switch to evaluate mode
+
+    model.eval()  # switch to evaluate mode
+
     end = time.time()
 
     for i, (input, target) in enumerate(val_loader):
+
         input, target = input.cuda(), target.cuda()
         torch.cuda.synchronize()
         data_time = time.time() - end
@@ -198,8 +229,7 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
         # measure accuracy and record loss
         result = Result()
         result.evaluate(pred.data, target.data)
-        # print('##################')
-        # print('input size = ', input.size(0))
+
         average_meter.update(result, gpu_time, data_time, input.size(0))
         end = time.time()
 
@@ -208,43 +238,56 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
         if args.modality == 'd':
             img_merge = None
         else:
-            rgb = input
+            if args.modality == 'rgb':
+                rgb = input
+            elif args.modality == 'rgbd':
+                rgb = input[:, :3, :, :]
+                depth = input[:, 3:, :, :]
 
             if i == 0:
-                img_merge = utils.merge_into_row(rgb, target, pred)
-            elif (i < 8*skip) and (i % skip == 0):
-                row = utils.merge_into_row(rgb, target, pred)
+                if args.modality == 'rgbd':
+                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+                else:
+                    img_merge = utils.merge_into_row(rgb, target, pred)
+            elif (i < 8 * skip) and (i % skip == 0):
+                if args.modality == 'rgbd':
+                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+                else:
+                    row = utils.merge_into_row(rgb, target, pred)
                 img_merge = utils.add_row(img_merge, row)
-            elif i == 8*skip:
+            elif i == 8 * skip:
                 filename = output_directory + '/comparison_' + str(epoch) + '.png'
                 utils.save_image(img_merge, filename)
 
-        if (i+1) % args.print_freq == 0:
+        if (i + 1) % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
                   'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                  'MAE={result.mae:.2f}({average.mae:.2f}) '
+                  'RML={result.absrel:.2f}({average.absrel:.2f}) '
+                  'Log10={result.lg10:.3f}({average.lg10:.3f}) '
                   'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '.format(
-                   i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average()))
+                  'Delta2={result.delta2:.3f}({average.delta2:.3f}) '
+                  'Delta3={result.delta3:.3f}({average.delta3:.3f})'.format(
+                i + 1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average()))
 
     avg = average_meter.average()
 
     print('\n*\n'
-        'RMSE={average.rmse:.3f}\n'
-        'MAE={average.mae:.3f}\n'
-        'Delta1={average.delta1:.3f}\n'
-        'REL={average.absrel:.3f}\n'
-        'Lg10={average.lg10:.3f}\n'
-        't_GPU={time:.3f}\n'.format(
+          'RMSE={average.rmse:.3f}\n'
+          'Rel={average.absrel:.3f}\n'
+          'Log10={average.lg10:.3f}\n'
+          'Delta1={average.delta1:.3f}\n'
+          'Delta2={average.delta2:.3f}\n'
+          'Delta3={average.delta3:.3f}\n'
+          't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
 
-    logger.add_scalar('Test/mse', avg.mse, epoch)
     logger.add_scalar('Test/rmse', avg.rmse, epoch)
     logger.add_scalar('Test/Rel', avg.absrel, epoch)
     logger.add_scalar('Test/log10', avg.lg10, epoch)
     logger.add_scalar('Test/Delta1', avg.delta1, epoch)
+    logger.add_scalar('Test/Delta2', avg.delta2, epoch)
+    logger.add_scalar('Test/Delta3', avg.delta3, epoch)
     return avg, img_merge
 
 
