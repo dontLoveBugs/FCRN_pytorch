@@ -1,4 +1,4 @@
-# FCRN implemented in Pytorch 4.0
+# FCRN implemented in Pytorch 0.4.1
 
 
 ### Introduction
