@@ -1,8 +1,8 @@
-# FCRN implemented in Pytorch 4.0
+# FCRN implemented in Pytorch 0.4.1
 
 
 ### Introduction
-This is a PyTorch(0.4.0) implementation of [Deeper Depth Prediction with Fully Convolutional Residual Networks](http://ieeexplore.ieee.org/document/7785097/). It
+This is a PyTorch(0.4.1) implementation of [Deeper Depth Prediction with Fully Convolutional Residual Networks](http://ieeexplore.ieee.org/document/7785097/). It
 can use Fully Convolutional Residual Networks to realize monocular depth prediction. Currently, we can train FCRN
 using NYUDepthv2(kitti will soon!).
 
