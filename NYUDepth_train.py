@@ -235,29 +235,17 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
 
         # save 8 images for visualization
         skip = 50
-        if args.modality == 'd':
-            img_merge = None
-        else:
-            if args.modality == 'rgb':
-                rgb = input
-            elif args.modality == 'rgbd':
-                rgb = input[:, :3, :, :]
-                depth = input[:, 3:, :, :]
 
-            if i == 0:
-                if args.modality == 'rgbd':
-                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                else:
-                    img_merge = utils.merge_into_row(rgb, target, pred)
-            elif (i < 8 * skip) and (i % skip == 0):
-                if args.modality == 'rgbd':
-                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                else:
-                    row = utils.merge_into_row(rgb, target, pred)
-                img_merge = utils.add_row(img_merge, row)
-            elif i == 8 * skip:
-                filename = output_directory + '/comparison_' + str(epoch) + '.png'
-                utils.save_image(img_merge, filename)
+        rgb = input
+          
+        if i == 0:
+            img_merge = utils.merge_into_row(rgb, target, pred)
+        elif (i < 8 * skip) and (i % skip == 0):  
+            row = utils.merge_into_row(rgb, target, pred)
+            img_merge = utils.add_row(img_merge, row)
+        elif i == 8 * skip:
+            filename = output_directory + '/comparison_' + str(epoch) + '.png'
+            utils.save_image(img_merge, filename)
 
         if (i + 1) % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
