@@ -13,7 +13,7 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.optim import lr_scheduler
 
-from dataloaders import kitti_dataloader, nyu_dataloader
+from dataloaders import kitti_dataloader, nyu_dataloader, path
 from metrics import AverageMeter, Result
 import utils
 import criteria
@@ -33,43 +33,45 @@ best_result = Result()
 best_result.set_to_worst()
 
 
-def data_loader(dataset, data_path, batch_size=32, isTrain=True, num_workers=4):
-    if isTrain:
-        traindir = os.path.join(data_path, 'train')
-        print('Train file path is ', traindir)
-
-        if os.path.exists(traindir):
-            print('Train dataset file path is existed!')
-
-        if dataset == 'kitti':
-            train_set = kitti_dataloader.KITTIDataset(traindir, type='train')
-        elif dataset == 'nyu':
-            train_set = nyu_dataloader.NYUDataset(traindir, type='train')
-        else:
-            print('no dataset named as ', dataset)
-            exit(-1)
-
-        train_loader = torch.utils.data.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
-        return train_loader
+def create_loader(args):
+    traindir = os.path.join(path.db_root_dir(args.dataset), 'train')
+    if os.path.exists(traindir):
+        print('Train dataset "{}" is existed!'.format(traindir))
     else:
-        valdir = os.path.join(data_path, 'val')
-        print('Test file path is ', valdir)
+        print('Train dataset "{}" is not existed!'.format(traindir))
+        exit(-1)
 
-        if os.path.exists(valdir):
-            print('Test dataset file path is existed!')
+    valdir = os.path.join(path.db_root_dir(args.dataset), 'val')
+    if os.path.exists(traindir):
+        print('Train dataset "{}" is existed!'.format(valdir))
+    else:
+        print('Train dataset "{}" is not existed!'.format(valdir))
+        exit(-1)
 
-        if dataset == 'kitti':
-            val_set = kitti_dataloader.KITTIDataset(valdir, type='val')
-        elif dataset == 'nyu':
-            val_set = nyu_dataloader.NYUDataset(valdir, type='val')
-        else:
-            print('no dataset named as ', dataset)
-            exit(-1)
+    if args.dataset == 'kitti':
+        train_set = kitti_dataloader.KITTIDataset(traindir, type='train')
+        val_set = kitti_dataloader.KITTIDataset(valdir, type='val')
 
+        # sample 3200 pictures for validation from val set
+        sampler = torch.utils.data.RandomSampler(val_set, num_samples=3200)
+    elif args.dataset == 'nyu':
+        train_set = nyu_dataloader.NYUDataset(traindir, type='train')
+        val_set = nyu_dataloader.NYUDataset(valdir, type='val')
+    else:
+        print('no dataset named as ', args.dataset)
+        exit(-1)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+
+    if args.dataset == 'kitti':
         val_loader = torch.utils.data.DataLoader(
-            val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
-        return val_loader
+            val_set, batch_size=args.batch_size, sampler=sampler, num_workers=args.workers, pin_memory=True)
+    else:
+        val_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
+
+    return train_loader, val_loader
 
 
 def main():
@@ -84,10 +86,7 @@ def main():
     else:
         print("Let's use GPU ", torch.cuda.current_device())
 
-    train_loader = data_loader(args.dataset, args.data_path, batch_size=args.batch_size,
-                               isTrain=True, num_workers=args.workers)
-    val_loader = data_loader(args.dataset, args.data_path, batch_size=args.batch_size,
-                             isTrain=False, num_workers=args.workers)
+    train_loader, val_loader = create_loader(args)
 
     if args.resume:
         assert os.path.isfile(args.resume), \
@@ -97,6 +96,7 @@ def main():
 
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
+        optimizer = checkpoint['optimizer']
 
         model_dict = checkpoint['model'].module.state_dict()  # to load the trained model using multi-GPUs
 
@@ -113,11 +113,11 @@ def main():
         print("=> model created.")
         start_epoch = 0
 
-    # different modules have different learning rate
-    train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
-                    {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
+        # different modules have different learning rate
+        train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
+                        {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
 
-    optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+        optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     # You can use DataParallel() whether you use Multi-GPUs or not
     model = nn.DataParallel(model)
