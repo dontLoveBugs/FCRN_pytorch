@@ -68,7 +68,7 @@ def data_loader(dataset, data_path, batch_size=32, isTrain=True, num_workers=4):
             exit(-1)
 
         val_loader = torch.utils.data.DataLoader(
-            val_set, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
+            val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
         return val_loader
 
 
@@ -115,7 +115,7 @@ def main():
 
     # different modules have different learning rate
     train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
-                    {'params': model.get_10x_lr_params(), 'lr': args.lr * 20}]
+                    {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
 
     optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
@@ -257,12 +257,14 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
 
 
 # validation
-def validate(val_loader, model, epoch, logger, write_to_file=True):
+def validate(val_loader, model, epoch, logger):
     average_meter = AverageMeter()
 
     model.eval()  # switch to evaluate mode
 
     end = time.time()
+
+    skip = len(val_loader) // 9  # save images every skip iters
 
     for i, (input, target) in enumerate(val_loader):
 
@@ -286,9 +288,9 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
         end = time.time()
 
         # save 8 images for visualization
-        skip = 50
-
-        rgb = input
+        rgb = input[0]
+        pred = pred[0]
+        target = target[0]
 
         if i == 0:
             img_merge = utils.merge_into_row(rgb, target, pred)
