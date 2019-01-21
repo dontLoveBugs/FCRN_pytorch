@@ -13,7 +13,8 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.optim import lr_scheduler
 
-from dataloaders import kitti_dataloader, nyu_dataloader, path
+from dataloaders import kitti_dataloader, nyu_dataloader
+from dataloaders.path import Path
 from metrics import AverageMeter, Result
 import utils
 import criteria
@@ -34,14 +35,14 @@ best_result.set_to_worst()
 
 
 def create_loader(args):
-    traindir = os.path.join(path.db_root_dir(args.dataset), 'train')
+    traindir = os.path.join(Path.db_root_dir(args.dataset), 'train')
     if os.path.exists(traindir):
         print('Train dataset "{}" is existed!'.format(traindir))
     else:
         print('Train dataset "{}" is not existed!'.format(traindir))
         exit(-1)
 
-    valdir = os.path.join(path.db_root_dir(args.dataset), 'val')
+    valdir = os.path.join(Path.db_root_dir(args.dataset), 'val')
     if os.path.exists(traindir):
         print('Train dataset "{}" is existed!'.format(valdir))
     else:
@@ -53,7 +54,9 @@ def create_loader(args):
         val_set = kitti_dataloader.KITTIDataset(valdir, type='val')
 
         # sample 3200 pictures for validation from val set
-        sampler = torch.utils.data.RandomSampler(val_set, num_samples=3200)
+        weights = [1 for i in range(len(val_set))]
+        print('weights:', len(weights))
+        sampler = torch.utils.data.WeightedRandomSampler(weights, num_samples=3200)
     elif args.dataset == 'nyu':
         train_set = nyu_dataloader.NYUDataset(traindir, type='train')
         val_set = nyu_dataloader.NYUDataset(valdir, type='val')
@@ -100,13 +103,14 @@ def main():
 
         model_dict = checkpoint['model'].module.state_dict()  # to load the trained model using multi-GPUs
 
-        model = FCRN.ResNet(output_size=train_loader.dataset.output_size)
+        model = FCRN.ResNet(output_size=train_loader.dataset.output_size, pretrained=False)
 
         model.load_state_dict(model_dict)
 
         print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
         del checkpoint  # clear memory
         del model_dict
+        torch.cuda.empty_cache()
     else:
         print("=> creating Model")
         model = FCRN.ResNet(output_size=train_loader.dataset.output_size)
