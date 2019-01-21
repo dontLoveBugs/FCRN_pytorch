@@ -279,8 +279,23 @@ class FasterUpProj(Decoder):
         self.layer4 = self.FasterUpProjModule(in_channel // 8)
 
 
+def choose_decoder(decoder, in_channels):
+    if decoder[:6] == 'deconv':
+        assert len(decoder) == 7
+        kernel_size = int(decoder[6])
+        return DeConv(in_channels, kernel_size)
+    elif decoder == "upproj":
+        return UpProj(in_channels)
+    elif decoder == "upconv":
+        return UpConv(in_channels)
+    elif decoder == "fasterupproj":
+        return FasterUpProj(in_channels)
+    else:
+        assert False, "invalid option for decoder: {}".format(decoder)
+
+
 class ResNet(nn.Module):
-    def __init__(self, layers = 50, output_size=(228, 304), in_channels=3, pretrained=True):
+    def __init__(self, dataset = 'kitti', layers = 50, decoder = 'upproj', output_size=(228, 304), in_channels=3, pretrained=True):
 
         if layers not in [18, 34, 50, 101, 152]:
             raise RuntimeError(
@@ -319,7 +334,7 @@ class ResNet(nn.Module):
         self.conv2 = nn.Conv2d(num_channels, num_channels // 2, kernel_size=1, bias=False)
         self.bn2 = nn.BatchNorm2d(num_channels // 2)
 
-        self.upSample = FasterUpProj(num_channels // 2)
+        self.upSample = choose_decoder(decoder, num_channels // 2)
 
         # setting bias=true doesn't improve accuracy
         self.conv3 = nn.Conv2d(num_channels // 32, 1, kernel_size=3, stride=1, padding=1, bias=False)
@@ -355,14 +370,34 @@ class ResNet(nn.Module):
 
         return x
 
+    def get_1x_lr_params(self):
+        """
+        This generator returns all the parameters of the net layer whose learning rate is 1x lr.
+        """
+        b = [self.conv1, self.bn1, self.relu, self.maxpool, self.layer1, self.layer2, self.layer3, self.layer4]
+        for i in range(len(b)):
+            for k in b[i].parameters():
+                if k.requires_grad:
+                    yield k
+
+    def get_10x_lr_params(self):
+        """
+        This generator returns all the parameters of the net layer whose learning rate is 20x lr.
+        """
+        b = [self.conv2, self.bn2, self.upSample, self.conv3, self.bilinear]
+        for j in range(len(b)):
+            for k in b[j].parameters():
+                if k.requires_grad:
+                    yield k
+
 
 import time
 
 if __name__ == "__main__":
-    model = ResNet(layers=50, output_size=((228, 304)))
+    model = ResNet(layers=50, output_size=(228, 912))
     model = model.cuda()
     model.eval()
-    image = torch.randn(1, 3, 228, 304)
+    image = torch.randn(1, 3, 228, 912)
     image = image.cuda()
 
     gpu_time = time.time()

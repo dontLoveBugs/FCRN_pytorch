@@ -1,24 +1,30 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2018/10/23 19:40
-# @Author  : Wang Xin
-# @Email   : wangxin_buaa@163.com
+"""
+ @Time    : 2019/1/21 15:25
+ @Author  : Wang Xin
+ @Email   : wangxin_buaa@163.com
+"""
+
 from datetime import datetime
 import shutil
 import socket
 import time
 import torch
 from tensorboardX import SummaryWriter
+from torch.optim import lr_scheduler
 
-import FCRN
-from dataloaders import nyu_dataloader
+from dataloaders import kitti_dataloader, nyu_dataloader
 from metrics import AverageMeter, Result
 import utils
 import criteria
 import os
 import torch.nn as nn
 
-# 切换成单卡
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 默认使用GPU 0
+import numpy as np
+
+from network import FCRN
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # use single GPU
 
 args = utils.parse_command()
 print(args)
@@ -27,43 +33,61 @@ best_result = Result()
 best_result.set_to_worst()
 
 
-def NYUDepth_loader(data_path, batch_size=32, isTrain=True):
+def data_loader(dataset, data_path, batch_size=32, isTrain=True, num_workers=4):
     if isTrain:
         traindir = os.path.join(data_path, 'train')
-        print(traindir)
+        print('Train file path is ', traindir)
 
         if os.path.exists(traindir):
-            print('训练集目录存在')
-        trainset = nyu_dataloader.NYUDataset(traindir, type='train')
+            print('Train dataset file path is existed!')
+
+        if dataset == 'kitti':
+            train_set = kitti_dataloader.KITTIDataset(traindir, type='train')
+        elif dataset == 'nyu':
+            train_set = nyu_dataloader.NYUDataset(traindir, type='train')
+        else:
+            print('no dataset named as ', dataset)
+            exit(-1)
+
         train_loader = torch.utils.data.DataLoader(
-            trainset, batch_size=batch_size, shuffle=True)  # @wx 多线程读取失败
+            train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
         return train_loader
     else:
         valdir = os.path.join(data_path, 'val')
-        print(valdir)
+        print('Test file path is ', valdir)
 
         if os.path.exists(valdir):
-            print('测试集目录存在')
-        valset = nyu_dataloader.NYUDataset(valdir, type='val')
+            print('Test dataset file path is existed!')
+
+        if dataset == 'kitti':
+            val_set = kitti_dataloader.KITTIDataset(valdir, type='val')
+        elif dataset == 'nyu':
+            val_set = nyu_dataloader.NYUDataset(valdir, type='val')
+        else:
+            print('no dataset named as ', dataset)
+            exit(-1)
+
         val_loader = torch.utils.data.DataLoader(
-            valset, batch_size=1, shuffle=False  # shuffle 测试时是否设置成False batch_size 恒定为1
-        )
+            val_set, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
         return val_loader
 
 
 def main():
     global args, best_result, output_directory
 
+    # set random seed
+    torch.manual_seed(args.manual_seed)
+
     if torch.cuda.device_count() > 1:
-        # args.batch_size = args.batch_size * torch.cuda.device_count()
         print("Let's use", torch.cuda.device_count(), "GPUs!")
-        train_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size * torch.cuda.device_count(),
-                                       isTrain=True)
-        val_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=False)
+        args.batch_size = args.batch_size * torch.cuda.device_count()
     else:
-        print("Let's use", torch.cuda.current_device())
-        train_loader = NYUDepth_loader(args.data_path, batch_size=args.batch_size, isTrain=True)
-        val_loader = NYUDepth_loader(args.data_path, isTrain=False)
+        print("Let's use GPU ", torch.cuda.current_device())
+
+    train_loader = data_loader(args.dataset, args.data_path, batch_size=args.batch_size,
+                               isTrain=True, num_workers=args.workers)
+    val_loader = data_loader(args.dataset, args.data_path, batch_size=args.batch_size,
+                             isTrain=False, num_workers=args.workers)
 
     if args.resume:
         assert os.path.isfile(args.resume), \
@@ -73,38 +97,56 @@ def main():
 
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
-        if torch.cuda.device_count() > 1:
-            model_dict = checkpoint['model'].module.state_dict()  # 如果是多卡训练的要加module
-        else:
-            model_dict = checkpoint['model'].state_dict()
-        # model_dict = checkpoint['model'].state_dict()
-        model = FCRN.ResNet(layers=50, output_size=((228, 304)))
+
+        model_dict = checkpoint['model'].module.state_dict()  # to load the trained model using multi-GPUs
+
+        model = FCRN.ResNet(output_size=train_loader.dataset.output_size)
+
         model.load_state_dict(model_dict)
-        # 使用SGD进行优化
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
         print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
+        del checkpoint  # clear memory
+        del model_dict
     else:
         print("=> creating Model")
-        model = FCRN.ResNet(layers=50, output_size=((228, 304)), pretrained=True)
+        model = FCRN.ResNet(output_size=train_loader.dataset.output_size)
         print("=> model created.")
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
         start_epoch = 0
-    # 如果有多GPU 使用多GPU训练
-    if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
 
+    # different modules have different learning rate
+    train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
+                    {'params': model.get_10x_lr_params(), 'lr': args.lr * 20}]
+
+    optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+
+    # You can use DataParallel() whether you use Multi-GPUs or not
+    model = nn.DataParallel(model)
     model = model.cuda()
 
-    # 定义loss函数
-    criterion = criteria.MaskedL1Loss().cuda()
+    # when training, use reduceLROnPlateau to reduce learning rate
+    scheduler = lr_scheduler.ReduceLROnPlateau(
+        optimizer, 'min', patience=args.lr_patience)
 
-    # 创建保存结果目录文件
+    # loss function
+    criterion = criteria.MaskedL1Loss()
+
+    # create directory path
     output_directory = utils.get_output_directory(args)
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     best_txt = os.path.join(output_directory, 'best.txt')
+    config_txt = os.path.join(output_directory, 'config.txt')
 
+    # write training parameters to config file
+    if not os.path.exists(config_txt):
+        with open(config_txt, 'w') as txtfile:
+            args_ = vars(args)
+            args_str = ''
+            for k, v in args_.items():
+                args_str = args_str + str(k) + ':' + str(v) + ',\t\n'
+            txtfile.write(args_str)
+
+    # create log
     log_path = os.path.join(output_directory, 'logs',
                             datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname())
     if os.path.isdir(log_path):
@@ -113,10 +155,13 @@ def main():
     logger = SummaryWriter(log_path)
 
     for epoch in range(start_epoch, args.epochs):
-        lr = utils.adjust_learning_rate(optimizer, args.lr, epoch)  # 更新学习率
-
         train(train_loader, model, criterion, optimizer, epoch, logger)  # train for one epoch
         result, img_merge = validate(val_loader, model, epoch, logger)  # evaluate on validation set
+
+        for i, param_group in enumerate(optimizer.param_groups):
+            old_lr = float(param_group['lr'])
+
+            logger.add_scalar('Lr/lr_' + str(i), old_lr, epoch)
 
         # remember best rmse and save checkpoint
         is_best = result.rmse < best_result.rmse
@@ -124,7 +169,8 @@ def main():
             best_result = result
             with open(best_txt, 'w') as txtfile:
                 txtfile.write(
-                    "epoch={}\nrmse={:.3f}\nrml={:.3f}\nlog10={:.3f}\nd1={:.3f}\nd2={:.3f}\nd3={:.3f}\nt_gpu={:.4f}\n".
+                    "epoch={}, rmse={:.3f}, rml={:.3f}, log10={:.3f}, d1={:.3f}, d2={:.3f}, dd31={:.3f}, "
+                    "t_gpu={:.4f}".
                         format(epoch, result.rmse, result.absrel, result.lg10, result.delta1, result.delta2,
                                result.delta3,
                                result.gpu_time))
@@ -132,7 +178,7 @@ def main():
                 img_filename = output_directory + '/comparison_best.png'
                 utils.save_image(img_merge, img_filename)
 
-        # 每个Epoch都保存解雇
+        # save checkpoint for each epoch
         utils.save_checkpoint({
             'args': args,
             'epoch': epoch,
@@ -141,10 +187,13 @@ def main():
             'optimizer': optimizer,
         }, is_best, epoch, output_directory)
 
+        # when rml doesn't fall, reduce learning rate
+        scheduler.step(result.absrel)
+
     logger.close()
 
 
-# 在NYUDepth数据集上训练
+# train
 def train(train_loader, model, criterion, optimizer, epoch, logger):
     average_meter = AverageMeter()
     model.train()  # switch to train mode
@@ -163,6 +212,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
 
         # compute pred
         end = time.time()
+
         pred = model(input)  # @wx 注意输出
 
         # print('pred size = ', pred.size())
@@ -186,6 +236,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
             print('Train Epoch: {0} [{1}/{2}]\t'
                   't_Data={data_time:.3f}({average.data_time:.3f}) '
                   't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+                  'Loss={Loss:.5f} '
                   'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
                   'RML={result.absrel:.2f}({average.absrel:.2f}) '
                   'Log10={result.lg10:.3f}({average.lg10:.3f}) '
@@ -193,7 +244,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
                   'Delta2={result.delta2:.3f}({average.delta2:.3f}) '
                   'Delta3={result.delta3:.3f}({average.delta3:.3f})'.format(
                 epoch, i + 1, len(train_loader), data_time=data_time,
-                gpu_time=gpu_time, result=result, average=average_meter.average()))
+                gpu_time=gpu_time, Loss=loss.item(), result=result, average=average_meter.average()))
             current_step = epoch * batch_num + i
             logger.add_scalar('Train/RMSE', result.rmse, current_step)
             logger.add_scalar('Train/rml', result.absrel, current_step)
@@ -205,7 +256,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
     avg = average_meter.average()
 
 
-# 修改
+# validation
 def validate(val_loader, model, epoch, logger, write_to_file=True):
     average_meter = AverageMeter()
 
@@ -223,6 +274,7 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
         end = time.time()
         with torch.no_grad():
             pred = model(input)
+
         torch.cuda.synchronize()
         gpu_time = time.time() - end
 
@@ -237,10 +289,10 @@ def validate(val_loader, model, epoch, logger, write_to_file=True):
         skip = 50
 
         rgb = input
-          
+
         if i == 0:
             img_merge = utils.merge_into_row(rgb, target, pred)
-        elif (i < 8 * skip) and (i % skip == 0):  
+        elif (i < 8 * skip) and (i % skip == 0):
             row = utils.merge_into_row(rgb, target, pred)
             img_merge = utils.add_row(img_merge, row)
         elif i == 8 * skip:
