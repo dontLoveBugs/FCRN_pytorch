@@ -4,7 +4,7 @@
 ### Introduction
 This is a PyTorch(0.4.1) implementation of [Deeper Depth Prediction with Fully Convolutional Residual Networks](http://ieeexplore.ieee.org/document/7785097/). It
 can use Fully Convolutional Residual Networks to realize monocular depth prediction. Currently, we can train FCRN
-using NYUDepthv2(kitti will soon!).
+using NYUDepthv2 and Kitti Odometry Dataset.
 
 
 ### Result
@@ -22,7 +22,7 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 12GB TITAN X.  We trai
  
 
 ### Installation
-The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X. 
+The code was tested with Python 3.5 with Pytorch 0.4.1 in 2 GPU TITAN X. 
 
 0. Clone the repo:
     ```Shell
@@ -39,18 +39,18 @@ The code was tested with Python 3.5 with Pytorch 4.0 in 2 GPU TITAN X.
     pip install matplotlib pillow tensorboardX
     ```
 
-2. Configure your dataset path in code.
+2. Configure your dataset path in "dataloaders/path.py".
 
 3. Training
 
     To train NYU Depth v2, please do:
     ```Shell
-    python NYUDepth_train.py
+    python main.py --dataset nyu
     ```
 
     To train it on KITTI, please do:
     ```Shell
-    python KITTI_train.py
+    python main.py --dataset kitti
     ```
 
 
