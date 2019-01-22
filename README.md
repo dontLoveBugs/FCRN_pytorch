@@ -19,6 +19,11 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 12GB TITAN X.  We trai
  FCRN_ours  | 0.151 | 0.526 | 0.062 | 0.804 | 0.956 | 0.988
  
 ![Image text](https://github.com/dontLoveBugs/FCRN_pytorch/blob/master/result/result.png)
+
+#### Kitti Odometry
+ Method |   rml  | rmse  | log10 | Delta1 | Delta2 | Delta3 
+ :-------| :------: | :------: | :------: | :------: | :------: | :------: 
+ FCRN_ours  | 0.167 | 5.330 | 0.069 | 0.819 | 0.950 | 0.982
  
 
 ### Installation
