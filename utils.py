@@ -19,7 +19,9 @@ def parse_command():
     import argparse
     parser = argparse.ArgumentParser(description='NYUDepth')
     parser.add_argument('--decoder', default='upproj', type=str)
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+    parser.add_argument('--resume',
+                        default='./result/upproj/run_1/model_best.pth.tar',
+                        type=str, metavar='PATH',
                         help='path to latest checkpoint (default: ./run/run_1/checkpoint-5.pth.tar)')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='mini-batch size (default: 4)')
     parser.add_argument('--epochs', default=200, type=int, metavar='N',
@@ -32,11 +34,9 @@ def parse_command():
                         help='momentum')
     parser.add_argument('--weight_decay', '--wd', default=0.0005, type=float,
                         metavar='W', help='weight decay (default: 1e-4)')
-    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                         help='number of data loading workers (default: 10)')
-    parser.add_argument('-dataset', type=str, default="kitti")
-    parser.add_argument("--data_path", type=str, default="/home/data/UnsupervisedDepth/wangixn/kitti",
-                        help="the root folder of dataset")
+    parser.add_argument('--dataset', type=str, default="kitti")
     parser.add_argument('--manual_seed', default=1, type=int, help='Manually set random seed')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
@@ -45,16 +45,16 @@ def parse_command():
 
 
 def get_output_directory(args):
-    save_dir_root = os.path.join(os.path.dirname(os.path.abspath(__file__)))
-    save_dir_root = os.path.join(save_dir_root, 'result', args.decoder)
     if args.resume:
-        runs = sorted(glob.glob(os.path.join(save_dir_root, 'run_*')))
-        run_id = int(runs[-1].split('_')[-1]) if runs else 0
+        return os.path.dirname(args.resume)
     else:
+        save_dir_root = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+        save_dir_root = os.path.join(save_dir_root, 'result', args.decoder)
         runs = sorted(glob.glob(os.path.join(save_dir_root, 'run_*')))
         run_id = int(runs[-1].split('_')[-1]) + 1 if runs else 0
-    save_dir = os.path.join(save_dir_root, 'run_' + str(run_id))
-    return save_dir
+
+        save_dir = os.path.join(save_dir_root, 'run_' + str(run_id))
+        return save_dir
 
 
 # 保存检查点

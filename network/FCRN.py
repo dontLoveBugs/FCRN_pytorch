@@ -397,7 +397,7 @@ if __name__ == "__main__":
     model = ResNet(layers=50, output_size=(228, 912))
     model = model.cuda()
     model.eval()
-    image = torch.randn(1, 3, 228, 912)
+    image = torch.randn(8, 3, 228, 912)
     image = image.cuda()
 
     gpu_time = time.time()
@@ -406,3 +406,4 @@ if __name__ == "__main__":
     gpu_time = time.time() - gpu_time
     print('gpu_time = ', gpu_time)
     print(output.size())
+    print(output[0].size())
