@@ -101,15 +101,17 @@ def main():
         best_result = checkpoint['best_result']
         optimizer = checkpoint['optimizer']
 
-        model_dict = checkpoint['model'].module.state_dict()  # to load the trained model using multi-GPUs
+        # model_dict = checkpoint['model'].module.state_dict()  # to load the trained model using multi-GPUs
+        #
+        # model = FCRN.ResNet(output_size=train_loader.dataset.output_size, pretrained=False)
+        #
+        # model.load_state_dict(model_dict)
 
-        model = FCRN.ResNet(output_size=train_loader.dataset.output_size, pretrained=False)
-
-        model.load_state_dict(model_dict)
+        model = checkpoint['model']
 
         print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
         del checkpoint  # clear memory
-        del model_dict
+        # del model_dict
         torch.cuda.empty_cache()
     else:
         print("=> creating Model")
@@ -123,9 +125,8 @@ def main():
 
         optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    # You can use DataParallel() whether you use Multi-GPUs or not
-    model = nn.DataParallel(model)
-    model = model.cuda()
+        # You can use DataParallel() whether you use Multi-GPUs or not
+        model = nn.DataParallel(model).cuda()
 
     # when training, use reduceLROnPlateau to reduce learning rate
     scheduler = lr_scheduler.ReduceLROnPlateau(
