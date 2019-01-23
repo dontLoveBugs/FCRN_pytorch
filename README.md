@@ -23,7 +23,7 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 12GB TITAN X.  We trai
 #### Kitti Odometry
  Method |   rml  | rmse  | log10 | Delta1 | Delta2 | Delta3 
  :-------| :------: | :------: | :------: | :------: | :------: | :------: 
- FCRN_ours  | 0.167 | 5.330 | 0.069 | 0.819 | 0.950 | 0.982
+ FCRN_ours  | 0.113 | 4.801 | 0.048 | 0.865 | 0.957 | 0.984
  
 
 ### Installation
