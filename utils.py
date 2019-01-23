@@ -17,10 +17,10 @@ def parse_command():
     modality_names = ['rgb', 'rgbd', 'd']
 
     import argparse
-    parser = argparse.ArgumentParser(description='NYUDepth')
+    parser = argparse.ArgumentParser(description='FCRN')
     parser.add_argument('--decoder', default='upproj', type=str)
     parser.add_argument('--resume',
-                        default='./result/upproj/run_1/model_best.pth.tar',
+                        default=None,
                         type=str, metavar='PATH',
                         help='path to latest checkpoint (default: ./run/run_1/checkpoint-5.pth.tar)')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='mini-batch size (default: 4)')
@@ -36,7 +36,7 @@ def parse_command():
                         metavar='W', help='weight decay (default: 1e-4)')
     parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                         help='number of data loading workers (default: 10)')
-    parser.add_argument('--dataset', type=str, default="kitti")
+    parser.add_argument('--dataset', type=str, default="nyu")
     parser.add_argument('--manual_seed', default=1, type=int, help='Manually set random seed')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
