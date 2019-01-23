@@ -25,6 +25,7 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 12GB TITAN X.  We trai
  :-------| :------: | :------: | :------: | :------: | :------: | :------: 
  FCRN_ours  | 0.113 | 4.801 | 0.048 | 0.865 | 0.957 | 0.984
  
+ ![Image text](https://github.com/dontLoveBugs/FCRN_pytorch/blob/master/result/kitti.png)
 
 ### Installation
 The code was tested with Python 3.5 with Pytorch 0.4.1 in 2 GPU TITAN X. 
