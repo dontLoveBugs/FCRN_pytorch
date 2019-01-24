@@ -16,7 +16,7 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 12GB TITAN X.  We trai
  Method |   rml  | rmse  | log10 | Delta1 | Delta2 | Delta3 
  :-------| :------: | :------: | :------: | :------: | :------: | :------: 
  FCRN   | 0.127  | 0.573 | 0.055 | 0.811 | 0.953 | 0.988
- FCRN_ours  | 0.151 | 0.526 | 0.062 | 0.804 | 0.956 | 0.988
+ FCRN_ours  | 0.149 | 0.527 | 0.062 | 0.805 | 0.954 | 0.987
  
 ![Image text](https://github.com/dontLoveBugs/FCRN_pytorch/blob/master/result/nyu.png)
 
