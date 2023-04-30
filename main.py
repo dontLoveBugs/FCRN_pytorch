@@ -80,6 +80,8 @@ def create_loader(args):
 def main():
     global args, best_result, output_directory
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
     # set random seed
     torch.manual_seed(args.manual_seed)
 
@@ -87,7 +89,8 @@ def main():
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         args.batch_size = args.batch_size * torch.cuda.device_count()
     else:
-        print("Let's use GPU ", torch.cuda.current_device())
+        # print("Let's use GPU ", torch.cuda.current_device())
+        pass
 
     train_loader, val_loader = create_loader(args)
 
@@ -127,7 +130,7 @@ def main():
         optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
         # You can use DataParallel() whether you use Multi-GPUs or not
-        model = nn.DataParallel(model).cuda()
+        model = nn.DataParallel(model).to(device)
 
     # when training, use reduceLROnPlateau to reduce learning rate
     scheduler = lr_scheduler.ReduceLROnPlateau(
@@ -167,7 +170,7 @@ def main():
             old_lr = float(param_group['lr'])
             logger.add_scalar('Lr/lr_' + str(i), old_lr, epoch)
 
-        train(train_loader, model, criterion, optimizer, epoch, logger)  # train for one epoch
+        train(train_loader, model, criterion, optimizer, epoch, logger, device)  # train for one epoch
         result, img_merge = validate(val_loader, model, epoch, logger)  # evaluate on validation set
 
         # remember best rmse and save checkpoint
@@ -201,7 +204,7 @@ def main():
 
 
 # train
-def train(train_loader, model, criterion, optimizer, epoch, logger):
+def train(train_loader, model, criterion, optimizer, epoch, logger, device):
     average_meter = AverageMeter()
     model.train()  # switch to train mode
     end = time.time()
@@ -211,10 +214,11 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
     for i, (input, target) in enumerate(train_loader):
 
         # itr_count += 1
-        input, target = input.cuda(), target.cuda()
+        input, target = input.to(device), target.to(device)
         # print('input size  = ', input.size())
         # print('target size = ', target.size())
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         data_time = time.time() - end
 
         # compute pred
@@ -229,7 +233,8 @@ def train(train_loader, model, criterion, optimizer, epoch, logger):
         optimizer.zero_grad()
         loss.backward()  # compute gradient and do SGD step
         optimizer.step()
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         gpu_time = time.time() - end
 
         # measure accuracy and record loss

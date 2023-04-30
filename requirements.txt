@@ -3,3 +3,5 @@ torchvision
 matplotlib
 pillow
 tensorboardX
+scipy
+h5py

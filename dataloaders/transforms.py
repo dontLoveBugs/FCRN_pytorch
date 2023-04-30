@@ -1,4 +1,5 @@
 from __future__ import division
+from PIL import Image
 import torch
 import math
 import random
@@ -334,9 +335,13 @@ class Resize(object):
             PIL Image: Rescaled image.
         """
         if img.ndim == 3:
-            return misc.imresize(img, self.size, self.interpolation)
+            # return misc.imresize(img, self.size, self.interpolation)
+            height, width, _ = img.shape
+            return np.array(Image.fromarray(img).resize((int(height * self.size), int(width * self.size)), 0))
         elif img.ndim == 2:
-            return misc.imresize(img, self.size, self.interpolation, 'F')
+            # return misc.imresize(img, self.size, self.interpolation, 'F')
+            height, width = img.shape
+            return np.array(Image.fromarray(img).resize((int(height * self.size), int(width * self.size)), 0))
         else:
             RuntimeError('img should be ndarray with 2 or 3 dimensions. Got {}'.format(img.ndim))
 

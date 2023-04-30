@@ -59,6 +59,9 @@ The code was tested with Python 3.5 with Pytorch 0.4.1 in 2 GPU TITAN X.
     python main.py --dataset kitti
     ```
 
+### NYU
 
-
-
+```
+mkdir -p data/nyu
+python dataloaders/nyu_convert.py
+```
