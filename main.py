@@ -127,7 +127,8 @@ def main():
         train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
                         {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
 
-        optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+        # optimizer = torch.optim.SGD(train_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+        optimizer = torch.optim.Adam(train_params, lr=args.lr, weight_decay=args.weight_decay)
 
         # You can use DataParallel() whether you use Multi-GPUs or not
         model = nn.DataParallel(model).to(device)
